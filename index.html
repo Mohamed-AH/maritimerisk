@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Global Maritime Threat Intelligence Network</title>
+    <!-- Tailwind CSS for Base Styling -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Share Tech Mono Font for Military/HUD styling -->
+    <link href="https://fonts.googleapis.com/css2?family=Share+Tech+Mono&display=swap" rel="stylesheet">
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            background-color: #020205;
+            color: #00f2fe;
+            font-family: 'Share Tech Mono', monospace;
+            user-select: none;
+        }
+        /* Custom Scanlines & Glow Overlay */
+        .crt-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+            background-size: 100% 4px, 6px 100%;
+            pointer-events: none;
+            z-index: 99;
+            opacity: 0.4;
+        }
+        /* Glowing effects */
+        .text-glow-teal {
+            text-shadow: 0 0 8px rgba(0, 242, 254, 0.8);
+        }
+        .text-glow-amber {
+            text-shadow: 0 0 8px rgba(255, 159, 10, 0.8);
+        }
+        .text-glow-red {
+            text-shadow: 0 0 8px rgba(255, 59, 48, 0.9);
+        }
+        .border-glow-teal {
+            box-shadow: 0 0 10px rgba(0, 242, 254, 0.2), inset 0 0 10px rgba(0, 242, 254, 0.2);
+        }
+        .border-glow-red {
+            box-shadow: 0 0 15px rgba(255, 59, 48, 0.4), inset 0 0 15px rgba(255, 59, 48, 0.3);
+        }
+        /* Scrollbar styling */
+        ::-webkit-scrollbar {
+            width: 4px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(2, 2, 5, 0.5);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(0, 242, 254, 0.3);
+            border-radius: 2px;
+        }
+        /* Blinking Terminal Cursor */
+        .cursor-blink::after {
+            content: " |";
+            animation: blink 1s infinite;
+        }
+        @keyframes blink {
+            0%, 49% { opacity: 1; }
+            50%, 100% { opacity: 0; }
+        }
+        /* Threat Flash alert */
+        @keyframes flashRed {
+            0%, 100% { background-color: rgba(255, 59, 48, 0.05); border-color: rgba(255, 59, 48, 0.4); }
+            50% { background-color: rgba(255, 59, 48, 0.25); border-color: rgba(255, 59, 48, 1); }
+        }
+        .flash-alert {
+            animation: flashRed 1s infinite;
+        }
+    </style>
+</head>
+<body class="relative w-screen h-screen">
+
+    <div class="crt-overlay"></div>
+
+    <!-- 3D Render Canvas Container -->
+    <div id="canvas-container" class="absolute inset-0 w-full h-full z-0"></div>
+
+    <!-- MAIN INTERACTIVE HUD OVERLAY -->
+    <div class="absolute inset-0 pointer-events-none z-10 flex flex-col justify-between p-4 md:p-6 select-none">
+        
+        <!-- HEADER MODULE -->
+        <header class="flex justify-between items-start pointer-events-auto">
+            <div class="bg-black/80 border border-cyan-500/30 p-4 border-glow-teal max-w-lg">
+                <div class="flex items-center gap-3">
+                    <div class="w-3 h-3 bg-cyan-400 rounded-full animate-ping"></div>
+                    <h1 class="text-xl md:text-2xl font-bold tracking-widest text-glow-teal text-cyan-400">MARITIME INTELLIGENCE & THREAT NETWORK</h1>
+                </div>
+                <p class="text-xs text-cyan-500/60 uppercase mt-1">Global AIS Feed // High-Precision Chokepoint Monitoring Subsystem</p>
+                <div class="grid grid-cols-3 gap-2 mt-3 text-xs text-cyan-500 border-t border-cyan-500/20 pt-2">
+                    <div>
+                        <span class="block text-[10px] text-cyan-500/40">SYSTEM STATE:</span>
+                        <span class="font-bold text-emerald-400">NOMINAL // MONITORING</span>
+                    </div>
+                    <div>
+                        <span class="block text-[10px] text-cyan-500/40">GLOBAL VOLUME CAP:</span>
+                        <span class="font-bold text-amber-400" id="global-volume">-14.2% DECREASE</span>
+                    </div>
+                    <div>
+                        <span class="block text-[10px] text-cyan-500/40">TARGET LOCK:</span>
+                        <span class="font-bold text-cyan-400" id="current-target-name">GLOBAL ROTATION</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- CHOKEPOINT QUICK LOOKUP CONTROLS -->
+            <div class="hidden md:flex flex-col gap-2 bg-black/80 border border-cyan-500/30 p-3 border-glow-teal text-xs">
+                <span class="text-[10px] text-cyan-500/40 font-bold border-b border-cyan-500/20 pb-1 mb-1">MONITOR CHOKEPOINTS</span>
+                <button onclick="window.focusChokepoint('hormuz')" class="px-3 py-1 bg-cyan-950/40 border border-cyan-500/30 hover:border-cyan-400 hover:bg-cyan-900/40 text-left text-cyan-400 transition-all flex justify-between items-center gap-4">
+                    <span>Strait of Hormuz</span><span class="text-amber-500 font-bold">HIGH RISK</span>
+                </button>
+                <button onclick="window.focusChokepoint('bab')" class="px-3 py-1 bg-cyan-950/40 border border-cyan-500/30 hover:border-cyan-400 hover:bg-cyan-900/40 text-left text-cyan-400 transition-all flex justify-between items-center gap-4">
+                    <span>Bab el-Mandeb</span><span class="text-amber-500 font-bold">HIGH RISK</span>
+                </button>
+                <button onclick="window.focusChokepoint('malacca')" class="px-3 py-1 bg-cyan-950/40 border border-cyan-500/30 hover:border-cyan-400 hover:bg-cyan-900/40 text-left text-cyan-400 transition-all flex justify-between items-center gap-4">
+                    <span>Strait of Malacca</span><span class="text-cyan-400 font-bold">NORMAL</span>
+                </button>
+                <button onclick="window.focusChokepoint('suez')" class="px-3 py-1 bg-cyan-950/40 border border-cyan-500/30 hover:border-cyan-400 hover:bg-cyan-900/40 text-left text-cyan-400 transition-all flex justify-between items-center gap-4">
+                    <span>Suez Canal</span><span class="text-cyan-400 font-bold">MONITORED</span>
+                </button>
+                <button onclick="window.resetGlobalView()" class="px-3 py-1 bg-cyan-950/20 border border-cyan-500/10 hover:border-cyan-400 text-left text-cyan-500 transition-all text-center">
+                    Reset Globe Rotation
+                </button>
+            </div>
+        </header>
+
+        <!-- MIDDLE SECTION: TARGET RISK RADAR & SCROLLING TELEMETRY (DYNAMIC) -->
+        <main class="flex flex-col md:flex-row justify-between items-end gap-4 mt-auto">
+            
+            <!-- LEFT MODULE: REAL-TIME FEED LOG -->
+            <div class="pointer-events-auto bg-black/85 border border-cyan-500/30 border-glow-teal p-4 w-full md:w-80 h-48 md:h-64 flex flex-col">
+                <div class="flex justify-between items-center border-b border-cyan-500/30 pb-2 mb-2 text-xs">
+                    <span class="font-bold tracking-widest text-cyan-400">AIS LIVESTREAM THREAT LOG</span>
+                    <span class="text-[10px] text-cyan-500/50 cursor-blink">LIVE DECRYPTION</span>
+                </div>
+                <div id="threat-log" class="flex-1 overflow-y-auto text-[11px] leading-relaxed flex flex-col gap-2 font-mono">
+                    <!-- Log lines inserted dynamically -->
+                </div>
+            </div>
+
+            <!-- RIGHT MODULE: DETAILED CRITICAL TELEMETRY CARD -->
+            <div id="telemetry-card" class="pointer-events-auto w-full md:w-[380px] bg-black/90 border border-cyan-500/20 p-4 transition-all duration-500 flex flex-col">
+                <!-- Idle State Default -->
+                <div id="telemetry-idle" class="flex flex-col items-center justify-center h-48 text-center text-cyan-500/40">
+                    <svg class="w-12 h-12 mb-3 opacity-30 animate-pulse text-cyan-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
+                    <p class="text-sm font-bold uppercase tracking-widest text-glow-teal text-cyan-400">GLOBE RADAR ACQUISITION</p>
+                    <p class="text-[10px] max-w-xs mt-1">Awaiting anomaly tracking pulse or manual tactical lock selection.</p>
+                </div>
+
+                <!-- Active Anomaly Target Lock State (Hidden initially) -->
+                <div id="telemetry-locked" class="hidden flex-col gap-3">
+                    <div class="flex justify-between items-center border-b border-red-500/40 pb-2">
+                        <span class="text-red-500 font-bold tracking-widest text-glow-red animate-pulse flex items-center gap-1.5">
+                            <span class="w-2.5 h-2.5 bg-red-600 rounded-full"></span>
+                            TELEMETRY LOCK ACTIVE
+                        </span>
+                        <span class="text-xs text-red-500" id="telemetry-coords">LAT: 00.00 // LON: 00.00</span>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-2 text-xs">
+                        <div class="bg-red-950/20 p-2 border border-red-500/20">
+                            <span class="block text-[9px] text-red-400/60">VESSEL CLASS</span>
+                            <span class="font-bold text-red-300" id="target-vessel">CARGO VESSEL</span>
+                        </div>
+                        <div class="bg-red-950/20 p-2 border border-red-500/20">
+                            <span class="block text-[9px] text-red-400/60">IDENTIFIED NAME</span>
+                            <span class="font-bold text-red-100" id="target-name">M/V COSCO PRIDE</span>
+                        </div>
+                    </div>
+
+                    <div class="bg-red-950/30 p-3 border border-red-500/30 flex flex-col gap-2 font-mono text-xs">
+                        <div class="flex justify-between items-center text-red-200">
+                            <span>VESSEL STATUS:</span>
+                            <span class="font-bold text-red-400" id="target-status">DARK // TRANSPONDER DEAD</span>
+                        </div>
+                        <div class="h-px bg-red-500/20 my-1"></div>
+                        <div class="flex justify-between">
+                            <span class="text-red-400/70">TRANSPONDER INACTIVE:</span>
+                            <span class="font-bold text-white" id="stat-days-dark">12 Days</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-red-400/70">LAST VHF VOICE CONTACT:</span>
+                            <span class="font-bold text-white" id="stat-voice-contact">34 Hours Ago</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-red-400/70">STRANDED AT ANCHOR:</span>
+                            <span class="font-bold text-white" id="stat-days-stranded">3 Days</span>
+                        </div>
+                        <div class="flex justify-between">
+                            <span class="text-red-400/70">ESTIMATED PROVISIONS:</span>
+                            <span class="font-bold text-white" id="stat-provisions">4 Days Remaining</span>
+                        </div>
+                        <div class="flex justify-between text-yellow-400 font-bold">
+                            <span>GPS POSITION OFFSET:</span>
+                            <span id="stat-gps-offset">84 KM</span>
+                        </div>
+                    </div>
+
+                    <div class="text-[10px] text-red-400/50 uppercase flex justify-between">
+                        <span>DATA ENCRYPT: military-grade-v5</span>
+                        <span class="animate-pulse">THREAT THRESHOLD: CRITICAL</span>
+                    </div>
+                </div>
+
+            </div>
+        </main>
+    </div>
+
+    <!-- AUDIO NOTIFICATION DRIVER (Uses Web Audio API dynamically to emit cyber warroom sonar pings) -->
+    <script>
+        const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        function playSonarPing(frequency = 800, duration = 0.8, type = 'sine') {
+            try {
+                if (audioCtx.state === 'suspended') audioCtx.resume();
+                const osc = audioCtx.createOscillator();
+                const gain = audioCtx.createGain();
+                osc.type = type;
+                osc.frequency.setValueAtTime(frequency, audioCtx.currentTime);
+                // Ramp-down the volume to mimic sonar falloff
+                gain.gain.setValueAtTime(0.15, audioCtx.currentTime);
+                gain.gain.exponentialRampToValueAtTime(0.001, audioCtx.currentTime + duration);
+                osc.connect(gain);
+                gain.connect(audioCtx.destination);
+                osc.start();
+                osc.stop(audioCtx.currentTime + duration);
+            } catch (err) {
+                // Audio not allowed / supported block
+            }
+        }
+    </script>
+
+    <!-- Three.js and Dependencies via CDN -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/examples/js/controls/OrbitControls.js"></script>
+
+    <script>
+        // Set up main globals
+        let scene, camera, renderer, controls;
+        let globeMesh, gridMesh;
+        let pointCloud; // landmass dot matrix
+        let shippingLanes = [];
+        let particles = [];
+        let anomalyRipples = [];
+        let anomalyBeams = [];
+        let targetRings = []; // chokepoint UI rings
+
+        // Camera Lock/Focus Animation parameters
+        let isFocusedOnTarget = false;
+        let targetCameraPosition = new THREE.Vector3();
+        let targetLookAt = new THREE.Vector3(0, 0, 0);
+        let currentLookAt = new THREE.Vector3(0, 0, 0);
+        let normalCameraDistance = 4.2;
+        let focusCameraDistance = 2.4;
+        let cameraAutoRotateSpeed = 0.0012;
+        let lastIncidentTime = 0;
+
+        const GLOBE_RADIUS = 1.5;
+
+        // Realistic Geographic Coords for Major Global Shipping Chokepoints
+        const chokepoints = {
+            hormuz: { name: 'Strait of Hormuz', lat: 26.56, lon: 56.25, risk: 'CRITICAL THREAT' },
+            bab: { name: 'Bab el-Mandeb', lat: 12.60, lon: 43.33, risk: 'HIGH INTERDICTION' },
+            malacca: { name: 'Strait of Malacca', lat: 1.43, lon: 102.81, risk: 'MONITORED TRANSIT' },
+            suez: { name: 'Suez Canal', lat: 29.93, lon: 32.53, risk: 'REDUCED VOLUMES' }
+        };
+
+        // Shipping Vectors linking production hubs and consumer centers through these key corridors
+        const shippingRoutes = [
+            { from: [1.43, 102.81], to: [26.56, 56.25], type: 'shadow' }, // Malacca to Hormuz (Shadow Fleet tankers)
+            { from: [26.56, 56.25], to: [12.60, 43.33], type: 'legit' },  // Hormuz to Bab el-Mandeb (LNG carriers)
+            { from: [12.60, 43.33], to: [29.93, 32.53], type: 'legit' },  // Bab el-Mandeb to Suez Canal (Crude oil)
+            { from: [29.93, 32.53], to: [36.14, -5.35], type: 'legit' },  // Suez to Gibraltar Strait
+            { from: [1.43, 102.81], to: [35.67, 139.65], type: 'legit' }, // Malacca to Tokyo bay
+            { from: [-33.92, 18.42], to: [12.60, 43.33], type: 'shadow' } // Cape of Good Hope to Horn of Africa (Shadow fleet detour)
+        ];
+
+        // Core dynamic mock database of vessels in simulated tracking feeds
+        const vesselDatabase = [
+            { name: "M/V Al-Jabal", type: "Crude Tanker", category: "legit" },
+            { name: "Shadow Tanker Delta", type: "Shadow Fleet", category: "shadow" },
+            { name: "Polaris Carrier", type: "LNG Carrier", category: "legit" },
+            { name: "Geronimo II", type: "Unverified Crude", category: "shadow" },
+            { name: "Suez Vanguard", type: "Container Ship", category: "legit" },
+            { name: "Ghost Rider VII", type: "Shadow Fleet", category: "shadow" },
+            { name: "HMS Defender", type: "Naval Escort", category: "legit" },
+            { name: "Barents Sea Oil", type: "Crude Tanker", category: "shadow" }
+        ];
+
+        const anomalies = [
+            { status: "AIS Signal Lost", color: "#ff3b30", desc: "GPS Transponder went black deep inside maritime territory." },
+            { status: "GNSS Spoofing Detected", color: "#ff9f0a", desc: "Spoofing array offset geographic reporting parameters." },
+            { status: "Vessel Stranded / Detained", color: "#ff3b30", desc: "Forced anchoring and communication blockage logged." },
+            { status: "AIS Disruption Spike", color: "#00f2fe", desc: "Wide-area tactical jamming detected by defense systems." }
+        ];
+
+        // Converts latitude and longitude coordinates into 3D sphere points
+        function latLongToVector3(lat, lon, radius) {
+            const phi = (90 - lat) * (Math.PI / 180);
+            const theta = (lon + 180) * (Math.PI / 180);
+            const x = -(radius * Math.sin(phi) * Math.sin(theta));
+            const y = radius * Math.cos(phi);
+            const z = radius * Math.sin(phi) * Math.cos(theta);
+            return new THREE.Vector3(x, y, z);
+        }
+
+        // Procedural geographic check: evaluates whether a coordinate represents realistic continental land
+        function isLand(lat, lon) {
+            // Approximations of regional nodes representing real land masses on our cyber globe
+            const continents = [
+                { lat: 60, lon: 100, r: 52 },   // Eurasia
+                { lat: 10, lon: 20, r: 36 },    // Africa
+                { lat: 45, lon: -100, r: 42 },  // North America
+                { lat: -20, lon: -60, r: 32 },  // South America
+                { lat: -25, lon: 135, r: 24 },  // Australia
+                { lat: -80, lon: 0, r: 28 },    // Antarctica
+                { lat: 25, lon: 45, r: 15 },    // Middle East
+                { lat: 15, lon: 120, r: 18 }    // Southeast Asia Island Cluster
+            ];
+            
+            for (let c of continents) {
+                let dLat = lat - c.lat;
+                let dLon = lon - c.lon;
+                if (dLon > 180) dLon -= 360;
+                if (dLon < -180) dLon += 360;
+                let dist = Math.sqrt(dLat * dLat + dLon * dLon);
+                if (dist < c.r) {
+                    // Introduce procedural noise mapping to form dynamic craggy coastlines
+                    let noise = Math.sin(lat * 0.4) * Math.cos(lon * 0.4) * 4.5;
+                    if (dist + noise < c.r) return true;
+                }
+            }
+            return false;
+        }
+
+        // Initialization Pipeline
+        function init() {
+            const container = document.getElementById('canvas-container');
+
+            // Scenario Setup
+            scene = new THREE.Scene();
+            scene.fog = new THREE.FogExp2(0x020205, 0.15);
+
+            // Camera Configuration
+            camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 0.1, 100);
+            camera.position.set(0, 1.5, normalCameraDistance);
+
+            // Renderer Setup
+            renderer = new THREE.WebGLRenderer({ antialias: true, alpha: false });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+            renderer.setClearColor(0x020205, 1.0);
+            container.appendChild(renderer.domElement);
+
+            // Orbit Controls Configuration
+            controls = new THREE.OrbitControls(camera, renderer.domElement);
+            controls.enableDamping = true;
+            controls.dampingFactor = 0.05;
+            controls.rotateSpeed = 0.6;
+            controls.enableZoom = true;
+            controls.minDistance = 1.8;
+            controls.maxDistance = 12;
+
+            // Ambient/Faint Global Lights
+            const ambientLight = new THREE.AmbientLight(0x0a2239, 1.2);
+            scene.add(ambientLight);
+
+            const directionalLight = new THREE.DirectionalLight(0x00f2fe, 1.5);
+            directionalLight.position.set(5, 3, 5);
+            scene.add(directionalLight);
+
+            // 1. STARFIELD CONTEXT
+            createStarfield();
+
+            // 2. TACTICAL GLOBE SPHERE
+            createTacticalGlobe();
+
+            // 3. TARGET CHOKEPOINTS SONAR OVERLAYS
+            setupChokepoints();
+
+            // 4. SHIPPING LANES AND LOGISTICS PATHS
+            generateShippingNetwork();
+
+            // Setup Resize Handling
+            window.addEventListener('resize', onWindowResize);
+
+            // Setup automated data cycle loops
+            setInterval(updateDynamicHUDStats, 5000);
+            
+            // Core Risk Event engine (loops every 14 seconds)
+            triggerRiskIncident();
+            setInterval(triggerRiskIncident, 14000);
+
+            animate();
+        }
+
+        // Fills environment with dynamic, ultra-faint stellar structures
+        function createStarfield() {
+            const starCount = 600;
+            const starGeo = new THREE.BufferGeometry();
+            const positions = new Float32Array(starCount * 3);
+            const colors = new Float32Array(starCount * 3);
+
+            for (let i = 0; i < starCount; i++) {
+                // Spherical dispersion far beyond scope of camera path
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos((Math.random() * 2) - 1);
+                const r = 15 + Math.random() * 10;
+
+                positions[i * 3] = r * Math.sin(phi) * Math.sin(theta);
+                positions[i * 3 + 1] = r * Math.cos(phi);
+                positions[i * 3 + 2] = r * Math.sin(phi) * Math.cos(theta);
+
+                // Varied pale slate colors
+                colors[i * 3] = 0.2 + Math.random() * 0.2;
+                colors[i * 3 + 1] = 0.4 + Math.random() * 0.3;
+                colors[i * 3 + 2] = 0.6 + Math.random() * 0.4;
+            }
+
+            starGeo.setAttribute('position', new THREE.BufferAttribute(positions, 3));
+            starGeo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+
+            const starMat = new THREE.PointsMaterial({
+                size: 0.04,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.8,
+                blending: THREE.AdditiveBlending
+            });
+
+            const stars = new THREE.Points(starGeo, starMat);
+            scene.add(stars);
+        }
+
+        // Generates the Procedural Globe, Wireframe Overlay, and landmass particles
+        function createTacticalGlobe() {
+            // Core dark sphere representing depth
+            const sphereGeo = new THREE.SphereGeometry(GLOBE_RADIUS, 40, 40);
+            const sphereMat = new THREE.MeshBasicMaterial({
+                color: 0x010c1a,
+                transparent: true,
+                opacity: 0.75,
+                depthWrite: true
+            });
+            globeMesh = new THREE.Mesh(sphereGeo, sphereMat);
+            scene.add(globeMesh);
+
+            // Thin longitude-latitude coordinate wireframe lines
+            const gridGeo = new THREE.SphereGeometry(GLOBE_RADIUS + 0.005, 30, 15);
+            const gridMat = new THREE.MeshBasicMaterial({
+                color: 0x072a4a,
+                wireframe: true,
+                transparent: true,
+                opacity: 0.25
+            });
+            gridMesh = new THREE.Mesh(gridGeo, gridMat);
+            scene.add(gridMesh);
+
+            // Procedural landmass dots mapping
+            const dotDensity = 9000;
+            const dotGeo = new THREE.BufferGeometry();
+            const positions = [];
+            const colors = [];
+
+            for (let i = 0; i < dotDensity; i++) {
+                const theta = Math.random() * Math.PI * 2;
+                const phi = Math.acos((Math.random() * 2) - 1);
+
+                const lat = 90 - (phi * (180 / Math.PI));
+                const lon = (theta * (180 / Math.PI)) - 180;
+
+                if (isLand(lat, lon)) {
+                    // Convert coordinates to sphere geometry
+                    const vector = latLongToVector3(lat, lon, GLOBE_RADIUS + 0.01);
+                    positions.push(vector.x, vector.y, vector.z);
+
+                    // Multi-hue procedural military matrix look
+                    const roll = Math.random();
+                    if (roll > 0.85) {
+                        // Highly glowing teal node points
+                        colors.push(0.0, 0.95, 1.0);
+                    } else {
+                        // Muted slate-blue nodes
+                        colors.push(0.12, 0.32, 0.48);
+                    }
+                }
+            }
+
+            dotGeo.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+            dotGeo.setAttribute('color', new THREE.Float32BufferAttribute(colors, 3));
+
+            const dotMat = new THREE.PointsMaterial({
+                size: 0.025,
+                vertexColors: true,
+                transparent: true,
+                opacity: 0.9,
+                blending: THREE.AdditiveBlending
+            });
+
+            pointCloud = new THREE.Points(dotGeo, dotMat);
+            scene.add(pointCloud);
+        }
+
+        // Sets up sonar target telemetry overlays centered around critical coordinates
+        function setupChokepoints() {
+            Object.keys(chokepoints).forEach(key => {
+                const point = chokepoints[key];
+                const vector = latLongToVector3(point.lat, point.lon, GLOBE_RADIUS + 0.015);
+                
+                // Ring Geometry mapping flat on globe surface
+                const ringGeo = new THREE.RingGeometry(0.04, 0.045, 32);
+                const ringMat = new THREE.MeshBasicMaterial({
+                    color: 0xffa000,
+                    side: THREE.DoubleSide,
+                    transparent: true,
+                    opacity: 0.6
+                });
+                
+                const ring = new THREE.Mesh(ringGeo, ringMat);
+                ring.position.copy(vector);
+                ring.lookAt(new THREE.Vector3(0, 0, 0)); // Align flat facing surface normal
+                scene.add(ring);
+
+                targetRings.push({
+                    mesh: ring,
+                    baseScale: 1.0,
+                    pulseSpeed: 1.5 + Math.random() * 2.0,
+                    anchor: vector
+                });
+            });
+        }
+
+        // Draws shipping lanes as curved arcs linking ports
+        function generateShippingNetwork() {
+            shippingRoutes.forEach(route => {
+                const pStart = latLongToVector3(route.from[0], route.from[1], GLOBE_RADIUS + 0.01);
+                const pEnd = latLongToVector3(route.to[0], route.to[1], GLOBE_RADIUS + 0.01);
+
+                // Interpolated quadratic bezier points creating a nice elegant arc off the surface
+                const midPoint = new THREE.Vector3().addVectors(pStart, pEnd).multiplyScalar(0.5);
+                const dist = pStart.distanceTo(pEnd);
+                const elevation = dist * 0.15; // Arc height proportional to distance
+                midPoint.normalize().multiplyScalar(GLOBE_RADIUS + elevation);
+
+                const curve = new THREE.QuadraticBezierCurve3(pStart, midPoint, pEnd);
+                const points = curve.getPoints(50);
+                const curveGeo = new THREE.BufferGeometry().setFromPoints(points);
+
+                // Stylized coloring
+                const color = route.type === 'shadow' ? 0xffa000 : 0x00f2fe;
+                const opacity = route.type === 'shadow' ? 0.3 : 0.4;
+                const curveMat = new THREE.LineBasicMaterial({
+                    color: color,
+                    transparent: true,
+                    opacity: opacity,
+                    blending: THREE.AdditiveBlending
+                });
+
+                const line = new THREE.Line(curveGeo, curveMat);
+                scene.add(line);
+
+                shippingLanes.push({
+                    curve: curve,
+                    type: route.type,
+                    color: color
+                });
+
+                // Spawns corresponding micro-flow particles navigating along the track
+                const numParticles = 3 + Math.floor(Math.random() * 4);
+                for (let i = 0; i < numParticles; i++) {
+                    particles.push({
+                        curve: curve,
+                        type: route.type,
+                        progress: Math.random(), // Randomize current progress along path
+                        speed: 0.01 + Math.random() * 0.015,
+                        mesh: createParticleMesh(route.type)
+                    });
+                }
+            });
+        }
+
+        // Instantiates micro-flow dynamic particles
+        function createParticleMesh(type) {
+            const pGeo = new THREE.SphereGeometry(0.008, 6, 6);
+            const pMat = new THREE.MeshBasicMaterial({
+                color: type === 'shadow' ? 0xffa000 : 0x00f2fe,
+                transparent: true,
+                opacity: 0.9,
+                blending: THREE.AdditiveBlending
+            });
+            const mesh = new THREE.Mesh(pGeo, pMat);
+            scene.add(mesh);
+            return mesh;
+        }
+
+        // Logic for triggering dynamic anomalies in simulated vessel data streams
+        function triggerRiskIncident() {
+            // Choose a random chokepoint as epicenter
+            const keys = Object.keys(chokepoints);
+            const randomKey = keys[Math.floor(Math.random() * keys.length)];
+            const activePoint = chokepoints[randomKey];
+
+            // Introduce coordinate drift inside tracking range
+            const offsetLat = activePoint.lat + (Math.random() - 0.5) * 1.5;
+            const offsetLon = activePoint.lon + (Math.random() - 0.5) * 1.5;
+            const anomalyVector = latLongToVector3(offsetLat, offsetLon, GLOBE_RADIUS + 0.01);
+
+            // Construct mock threat database elements
+            const randomVessel = vesselDatabase[Math.floor(Math.random() * vesselDatabase.length)];
+            const randomAnomaly = anomalies[Math.floor(Math.random() * anomalies.length)];
+
+            // Play defensive radar sonar ping
+            playSonarPing(880, 1.2, 'triangle');
+
+            // Generate visuals for dynamic threat incident (crimson wave and laser beam)
+            createCrimsonShockwave(anomalyVector);
+            createTelemetrySpaceBeam(anomalyVector);
+
+            // UI telemetry dashboard updates
+            updateUITelemetryCard(activePoint, randomVessel, randomAnomaly, offsetLat, offsetLon);
+
+            // Append warning logs inside Scrolling Threat Log container
+            appendThreatLog(randomVessel, randomAnomaly, activePoint);
+
+            // Smoothly move controls look-at and lock camera focus onto threat vector
+            isFocusedOnTarget = true;
+            targetLookAt.copy(anomalyVector);
+            
+            // Calculate focal point angle for camera to lock position directly on coordinates
+            const direction = anomalyVector.clone().normalize();
+            targetCameraPosition.copy(direction.multiplyScalar(focusCameraDistance));
+
+            // Duration for lock focus (4 seconds), then return back to global overview
+            setTimeout(() => {
+                isFocusedOnTarget = false;
+                document.getElementById('current-target-name').innerText = "GLOBAL ROTATION";
+                // Demote telemetry locking window elements
+                document.getElementById('telemetry-locked').classList.add('hidden');
+                document.getElementById('telemetry-idle').classList.remove('hidden');
+            }, 4000);
+        }
+
+        // Dynamic 3D Expanding Sonic Shockwave Ripple
+        function createCrimsonShockwave(anchorVector) {
+            const rippleGeo = new THREE.RingGeometry(0.01, 0.015, 32);
+            const rippleMat = new THREE.MeshBasicMaterial({
+                color: 0xff3b30,
+                side: THREE.DoubleSide,
+                transparent: true,
+                opacity: 1.0,
+                blending: THREE.AdditiveBlending
+            });
+            const ripple = new THREE.Mesh(rippleGeo, rippleMat);
+            ripple.position.copy(anchorVector);
+            ripple.lookAt(new THREE.Vector3(0, 0, 0)); // Flat projection orientation
+            scene.add(ripple);
+
+            anomalyRipples.push({
+                mesh: ripple,
+                scale: 1.0,
+                maxScale: 15.0,
+                speed: 0.12,
+                opacity: 1.0
+            });
+        }
+
+        // Laser Beam projecting directly out of coordinates and into deep space
+        function createTelemetrySpaceBeam(anchorVector) {
+            // Set up endpoints reaching outward from target point on surface
+            const points = [];
+            points.push(anchorVector.clone());
+            // Project outward directly aligned with coordinate normal vector
+            const extended = anchorVector.clone().normalize().multiplyScalar(GLOBE_RADIUS * 2.8);
+            points.push(extended);
+
+            const beamGeo = new THREE.BufferGeometry().setFromPoints(points);
+            const beamMat = new THREE.LineBasicMaterial({
+                color: 0xff3b30,
+                transparent: true,
+                opacity: 0.9,
+                blending: THREE.AdditiveBlending
+            });
+            const beam = new THREE.Line(beamGeo, beamMat);
+            scene.add(beam);
+
+            anomalyBeams.push({
+                mesh: beam,
+                opacity: 1.0,
+                decaySpeed: 0.02
+            });
+        }
+
+        // Adds threat reports inside HUD tracking feeds
+        function appendThreatLog(vessel, anomaly, chokepoint) {
+            const container = document.getElementById('threat-log');
+            const timestamp = new Date().toLocaleTimeString('en-US', { hour12: false });
+            
+            const logItem = document.createElement('div');
+            logItem.className = "border-l-2 pl-2 mb-1 text-red-400 border-red-500/70 py-1 bg-red-950/10";
+            
+            logItem.innerHTML = `
+                <div class="flex justify-between font-bold">
+                    <span>[${timestamp}] CRITICAL THREAT</span>
+                    <span>${vessel.name}</span>
+                </div>
+                <div class="text-[10px] text-red-300/80 mt-0.5">
+                    EVENT: ${anomaly.status} // AREA: ${chokepoint.name}
+                </div>
+            `;
+
+            container.prepend(logItem);
+
+            // Limit elements to prevent performance degradation
+            while (container.childNodes.length > 25) {
+                container.removeChild(container.lastChild);
+            }
+        }
+
+        // Realtime random system stats loop
+        function updateDynamicHUDStats() {
+            // Fluctuating percentage decrease representing regional stress levels
+            const volumePct = -10.0 - (Math.random() * 8.5);
+            document.getElementById('global-volume').innerText = `${volumePct.toFixed(1)}% DECREASE`;
+            document.getElementById('global-volume').className = `font-bold ${volumePct < -14 ? 'text-red-500' : 'text-amber-500'}`;
+        }
+
+        // Activates detailed dynamic military data-card layouts on incident lock
+        function updateUITelemetryCard(chokepoint, vessel, anomaly, lat, lon) {
+            document.getElementById('telemetry-idle').classList.add('hidden');
+            const lockedPanel = document.getElementById('telemetry-locked');
+            lockedPanel.classList.remove('hidden');
+
+            // Flashing visual alert frame class
+            lockedPanel.parentElement.className = "pointer-events-auto w-full md:w-[380px] bg-black/90 border-2 p-4 transition-all duration-500 flex flex-col flash-alert border-red-500";
+            setTimeout(() => {
+                lockedPanel.parentElement.className = "pointer-events-auto w-full md:w-[380px] bg-black/90 border p-4 transition-all duration-500 flex flex-col border-cyan-500/20";
+            }, 1500);
+
+            // Value Injection
+            document.getElementById('current-target-name').innerText = vessel.name.toUpperCase();
+            document.getElementById('telemetry-coords').innerText = `LAT: ${lat.toFixed(4)} // LON: ${lon.toFixed(4)}`;
+            document.getElementById('target-vessel').innerText = vessel.type.toUpperCase();
+            document.getElementById('target-name').innerText = vessel.name.toUpperCase();
+            document.getElementById('target-status').innerText = anomaly.status.toUpperCase();
+
+            // Populate random simulated narrative telemetry statistics
+            const daysDark = Math.floor(Math.random() * 15) + 3;
+            const lastContact = Math.floor(Math.random() * 48) + 4;
+            const daysStranded = Math.floor(Math.random() * 8) + 1;
+            const provisions = Math.floor(Math.random() * 10) + 2;
+            const spoofingOffset = Math.floor(Math.random() * 110) + 12;
+
+            document.getElementById('stat-days-dark').innerText = `${daysDark} Days`;
+            document.getElementById('stat-voice-contact').innerText = `${lastContact} Hours Ago (VHF)`;
+            document.getElementById('stat-days-stranded').innerText = `${daysStranded} Days`;
+            document.getElementById('stat-provisions').innerText = `${provisions} Days Remaining`;
+            document.getElementById('stat-gps-offset').innerText = `${spoofingOffset} KM`;
+        }
+
+        // Expose manual interaction functions to global window namespace
+        window.focusChokepoint = function(key) {
+            const point = chokepoints[key];
+            if (!point) return;
+
+            playSonarPing(600, 0.6, 'sine');
+            
+            const pointVector = latLongToVector3(point.lat, point.lon, GLOBE_RADIUS + 0.01);
+            
+            isFocusedOnTarget = true;
+            targetLookAt.copy(pointVector);
+            const direction = pointVector.clone().normalize();
+            targetCameraPosition.copy(direction.multiplyScalar(focusCameraDistance));
+
+            // Generate sonar scan visual indicators
+            createCrimsonShockwave(pointVector);
+
+            // Display manual target monitoring details on dashboard
+            document.getElementById('current-target-name').innerText = point.name.toUpperCase();
+            document.getElementById('telemetry-idle').classList.add('hidden');
+            const lockedPanel = document.getElementById('telemetry-locked');
+            lockedPanel.classList.remove('hidden');
+
+            document.getElementById('telemetry-coords').innerText = `LAT: ${point.lat} // LON: ${point.lon}`;
+            document.getElementById('target-vessel').innerText = "CHOKEPOINT SONAR";
+            document.getElementById('target-name').innerText = point.name.toUpperCase();
+            document.getElementById('target-status').innerText = point.risk;
+
+            // Fictionalizing standard operational values for static monitoring coordinates
+            document.getElementById('stat-days-dark').innerText = "N/A (STATIC HUB)";
+            document.getElementById('stat-voice-contact').innerText = "0.01 ms Latency";
+            document.getElementById('stat-days-stranded').innerText = "0 Days";
+            document.getElementById('stat-provisions').innerText = "CONSTANT ACCESS";
+            document.getElementById('stat-gps-offset').innerText = "0.00 KM (VERIFIED BASE)";
+        };
+
+        window.resetGlobalView = function() {
+            isFocusedOnTarget = false;
+            document.getElementById('current-target-name').innerText = "GLOBAL ROTATION";
+            document.getElementById('telemetry-locked').classList.add('hidden');
+            document.getElementById('telemetry-idle').classList.remove('hidden');
+            playSonarPing(400, 0.4, 'sine');
+        };
+
+        // Window Resizing Handlers
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        // Animation Frame Engine
+        function animate() {
+            requestAnimationFrame(animate);
+
+            // Handle Camera Rotation / Transition Lerping
+            if (isFocusedOnTarget) {
+                // Smoothly focus camera onto targeted focus coordinates
+                camera.position.lerp(targetCameraPosition, 0.05);
+                currentLookAt.lerp(targetLookAt, 0.05);
+                camera.lookAt(currentLookAt);
+                controls.target.copy(currentLookAt);
+            } else {
+                // Return camera to global idle rotation state
+                const time = Date.now() * cameraAutoRotateSpeed;
+                const idleX = Math.sin(time) * normalCameraDistance;
+                const idleZ = Math.cos(time) * normalCameraDistance;
+                const idleCameraPos = new THREE.Vector3(idleX, 1.2, idleZ);
+
+                camera.position.lerp(idleCameraPos, 0.03);
+                targetLookAt.set(0, 0, 0);
+                currentLookAt.lerp(targetLookAt, 0.03);
+                camera.lookAt(currentLookAt);
+                controls.target.copy(currentLookAt);
+            }
+
+            // Animate Shipping Lane Micro-particles
+            particles.forEach(p => {
+                p.progress += p.speed * 0.035;
+                if (p.progress > 1.0) {
+                    p.progress = 0.0; // Wrap around to begin transit arc anew
+                }
+                const position = p.curve.getPointAt(p.progress);
+                p.mesh.position.copy(position);
+            });
+
+            // Sonar Scanning Pulsating Target Rings animation
+            const elapsed = Date.now() * 0.001;
+            targetRings.forEach(ring => {
+                const scale = ring.baseScale + Math.sin(elapsed * ring.pulseSpeed) * 0.35;
+                ring.mesh.scale.set(scale, scale, 1.0);
+                // Cycle Ring colors subtly
+                ring.mesh.material.color.setHex(scale > 1.1 ? 0xff4f00 : 0xffa000);
+            });
+
+            // Animate dynamic Crimson Risk Ripples
+            for (let i = anomalyRipples.length - 1; i >= 0; i--) {
+                const r = anomalyRipples[i];
+                r.scale += r.speed;
+                r.opacity -= 0.015;
+
+                r.mesh.scale.set(r.scale, r.scale, 1.0);
+                r.mesh.material.opacity = r.opacity;
+
+                if (r.opacity <= 0) {
+                    scene.remove(r.mesh);
+                    r.mesh.geometry.dispose();
+                    r.mesh.material.dispose();
+                    anomalyRipples.splice(i, 1);
+                }
+            }
+
+            // Animate Telemetry Beams (decays slowly)
+            for (let i = anomalyBeams.length - 1; i >= 0; i--) {
+                const b = anomalyBeams[i];
+                b.opacity -= b.decaySpeed;
+                b.mesh.material.opacity = b.opacity;
+
+                if (b.opacity <= 0) {
+                    scene.remove(b.mesh);
+                    b.mesh.geometry.dispose();
+                    b.mesh.material.dispose();
+                    anomalyBeams.splice(i, 1);
+                }
+            }
+
+            // Slow idle spin of globe particles and grid meshes
+            if (pointCloud && !isFocusedOnTarget) {
+                pointCloud.rotation.y += 0.0004;
+                gridMesh.rotation.y += 0.0004;
+            }
+
+            controls.update();
+            renderer.render(scene, camera);
+        }
+
+        // Execute scene initialization on document load
+        window.onload = function() {
+            init();
+        };
+    </script>
+</body>
+</html>
