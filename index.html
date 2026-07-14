@@ -806,6 +806,7 @@ function buildFilters() {
 function visibleVessels() {
   const q = document.getElementById('searchBox').value.trim().toUpperCase();
   return allVessels().filter(v => {
+    if (!Number.isFinite(v.lat) || !Number.isFinite(v.lon)) return false;
     if (v.dark && !typeFilterState.dark) return false;
     if (!v.dark && !typeFilterState[v.type]) return false;
     if (q && !(v.name.includes(q) || String(v.mmsi).includes(q) || String(v.imo).includes(q))) return false;
@@ -982,6 +983,8 @@ document.getElementById('modalConnect').addEventListener('click', () => {
   connectLive(key);
 });
 
+let lastLiveMsg = 0;
+let liveMsgCount = 0;
 function connectLive(key) {
   disconnectLive(true);
   wsStatus.textContent = 'Connecting to aisstream.io…'; wsStatus.style.color = 'var(--muted)';
@@ -990,22 +993,73 @@ function connectLive(key) {
   } catch (e) {
     wsStatus.textContent = 'WebSocket failed: ' + e.message; wsStatus.style.color = 'var(--red)'; return;
   }
+  ws.binaryType = 'arraybuffer'; // aisstream sends binary frames
+  const decoder = new TextDecoder();
   ws.onopen = () => {
     ws.send(JSON.stringify({
       APIKey: key,
       BoundingBoxes: [[[23.5, 52.5], [28.0, 60.0]]], // Hormuz + approaches
       FilterMessageTypes: ['PositionReport', 'ShipStaticData'],
     }));
-    wsStatus.textContent = 'Connected — streaming live AIS.'; wsStatus.style.color = 'var(--green)';
+    lastLiveMsg = 0; liveMsgCount = 0;
+    wsStatus.textContent = 'Connected — waiting for AIS traffic…'; wsStatus.style.color = 'var(--green)';
     setLiveMode(true);
-    setTimeout(() => modalBg.classList.remove('open'), 900);
+    setTimeout(() => modalBg.classList.remove('open'), 1200);
   };
-  ws.onmessage = (msg) => {
-    try { handleAis(JSON.parse(msg.data)); } catch (e) { /* skip malformed frame */ }
+  ws.onmessage = async (msg) => {
+    let raw = msg.data;
+    try {
+      if (raw instanceof ArrayBuffer) raw = decoder.decode(raw);
+      else if (raw instanceof Blob) raw = await raw.text();
+      const m = JSON.parse(raw);
+      if (m.error) { // aisstream rejects the subscription with an error frame
+        wsStatus.textContent = 'aisstream error: ' + m.error; wsStatus.style.color = 'var(--red)';
+        liveError('ERROR: ' + m.error);
+        return;
+      }
+      lastLiveMsg = Date.now(); liveMsgCount++;
+      if (liveMsgCount === 1) { wsStatus.textContent = 'Connected — streaming live AIS.'; }
+      handleAis(m);
+    } catch (e) { console.warn('AIS frame skipped:', e.message); }
   };
   ws.onerror = () => { wsStatus.textContent = 'Connection error — check the key or network.'; wsStatus.style.color = 'var(--red)'; };
-  ws.onclose = () => { if (liveMode) setLiveMode(false); };
+  ws.onclose = () => {
+    if (liveMode) {
+      liveError('DISCONNECTED');
+      // auto-retry once after 5 s (aisstream drops idle/duplicate connections)
+      const key2 = localStorage.getItem('aisKey');
+      if (key2) setTimeout(() => { if (liveMode && (!ws || ws.readyState === WebSocket.CLOSED)) connectLive(key2); }, 5000);
+    }
+  };
 }
+function liveError(label) {
+  const badge = document.getElementById('feedBadge');
+  badge.classList.remove('live');
+  document.getElementById('feedLabel').textContent = 'LIVE AIS · ' + label;
+}
+// watchdog: connected but silent -> tell the user instead of showing an empty map
+setInterval(() => {
+  if (!liveMode || !ws || ws.readyState !== WebSocket.OPEN) return;
+  const silent = Date.now() - lastLiveMsg;
+  if (liveMsgCount === 0) {
+    document.getElementById('feedLabel').textContent = 'LIVE AIS · NO DATA YET';
+    wsStatus.textContent = 'Connected but no messages received — check that the API key is valid on aisstream.io.';
+    wsStatus.style.color = 'var(--amber)';
+  } else if (silent > 120000) {
+    document.getElementById('feedLabel').textContent = 'LIVE AIS · STALLED';
+  } else {
+    document.getElementById('feedLabel').textContent = 'LIVE AIS · AISSTREAM';
+    document.getElementById('feedBadge').classList.add('live');
+  }
+  // drop targets that stopped transmitting >20 min ago
+  const cutoff = Date.now() - 20 * 60000;
+  liveVessels.forEach((v, k) => {
+    if (v.lastAis < cutoff) {
+      if (v.marker) map.removeLayer(v.marker);
+      liveVessels.delete(k);
+    }
+  });
+}, 10000);
 function disconnectLive(silent) {
   if (ws) { ws.onclose = null; ws.close(); ws = null; }
   if (liveMode) setLiveMode(false);
